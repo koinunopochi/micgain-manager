@@ -17,7 +17,13 @@ tasks:
     desc: Build then launch the web/CLI server (override ADDR env if needed)
     deps: [build]
     cmds:
-      - {{.DIST_DIR}}/{{.BINARY}} serve --addr {{default "127.0.0.1:7070" .ADDR}}
+      - '{{.DIST_DIR}}/{{.BINARY}} serve --addr {{default "127.0.0.1:7070" .ADDR}}'
+
+  shell:
+    desc: Build then launch the interactive shell (append ARGS env for extra options)
+    deps: [build]
+    cmds:
+      - '{{.DIST_DIR}}/{{.BINARY}} shell {{default "" .ARGS}}'
 
   clean:
     desc: Remove build artifacts

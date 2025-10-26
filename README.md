@@ -9,7 +9,7 @@ macOSのマイク入力音量を「ユーザーが明示的に変更したとき
 - スケジューラが一定間隔で`set volume input volume <N>`を実行し、第三者アプリによる自動調整を打ち消す
 - 設定変更時に「今すぐ適用 / 次のスケジュールまで待つ」を選択可能
 - Web UIは単一バイナリ内蔵の静的ページで、ブラウザから即時実行・監視が可能
-- CobraベースのCLIコマンド (serve / config get|set / apply) で`--help`補助付きの操作が可能
+- CobraベースのCLIコマンド (serve / config get|set / apply / shell) で`--help`補助付きの操作が可能
 - 単体バイナリをホストに配置するだけで利用でき、追加のコンテナ環境は不要
 
 ## 使い方
@@ -36,7 +36,21 @@ MICGAIN_CFG=~/.config/micgain-manager/config.json ./dist/micgain-manager serve -
 ./dist/micgain-manager apply --volume 50
 ```
 
-### 3. Taskfile経由でビルド/実行
+### 3. 対話型シェル
+繰り返し操作するときは `shell` サブコマンドが便利です。ターミナル内で `micgain>` プロンプトが立ち上がり、`config set --volume 70` などを直接入力できます。
+```bash
+./dist/micgain-manager shell -v        # -v や --config など通常のグローバルフラグも利用可
+# シェル内で利用できる主なコマンド:
+#   serve --addr 0.0.0.0:7070
+#   config get
+#   apply --volume 40
+#   log -vvvv        <- ログをトレースレベルまで引き上げ
+#   log --show       <- 現在のログレベルを確認
+#   exit / quit      <- シェル終了
+```
+`log -v`, `log -vvv` のように `-v` を増やすほどログが詳細になります（0=warn, -v=info, -vv=debug, -vvv/-vvvv=trace）。通常のサブコマンド実行時も `-v` を付ければ同様に反映されます。
+
+### 4. Taskfile経由でビルド/実行
 `go-task` をまだ導入していない場合は `brew install go-task/tap/go-task` 等でセットアップしてください。
 ```bash
 # dist/micgain-manager にビルド
@@ -44,6 +58,9 @@ task build
 
 # (ADDRを環境変数で上書きしつつ) ビルド→サーバー起動
 ADDR=0.0.0.0:8080 task serve
+
+# 対話型シェルをビルド後に起動 (ARGS環境変数で追加フラグ指定可)
+ARGS="-v --prompt 'mgain> '" task shell
 
 # 生成物の掃除
 task clean
