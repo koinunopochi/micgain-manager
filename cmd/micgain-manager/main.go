@@ -76,6 +76,7 @@ func newServeCmd() *cobra.Command {
 			mgr.Start(ctx)
 
 			srv := web.New(mgr, addr)
+			fmt.Printf("Mic Gain Manager UI running at http://%s\n", addr)
 			logging.Infof("Mic Gain Manager UI: http://%s", addr)
 			go func() {
 				<-ctx.Done()
