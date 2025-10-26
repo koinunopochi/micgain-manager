@@ -9,38 +9,44 @@ macOSのマイク入力音量を「ユーザーが明示的に変更したとき
 - スケジューラが一定間隔で`set volume input volume <N>`を実行し、第三者アプリによる自動調整を打ち消す
 - 設定変更時に「今すぐ適用 / 次のスケジュールまで待つ」を選択可能
 - Web UIは単一バイナリ内蔵の静的ページで、ブラウザから即時実行・監視が可能
-- CLIコマンド (serve / config get|set / apply) ですべての操作を自動化
+- CobraベースのCLIコマンド (serve / config get|set / apply) で`--help`補助付きの操作が可能
 - 単体バイナリをホストに配置するだけで利用でき、追加のコンテナ環境は不要
 
 ## 使い方
 
 ### 1. バイナリ実行 (macOSホスト)
 ```bash
+# まず task build で dist/micgain-manager を生成
+task build
+
 # サーバー(Web UI + REST + スケジューラ)起動
-MICGAIN_CFG=~/.config/micgain-manager/config.json
-./micgain-manager serve --config "$MICGAIN_CFG" --addr 127.0.0.1:7070
+MICGAIN_CFG=~/.config/micgain-manager/config.json ./dist/micgain-manager serve --config "$MICGAIN_CFG" --addr 127.0.0.1:7070
 ```
 ブラウザで http://127.0.0.1:7070/ にアクセスし、音量やインターバルを更新できます。
 
 ### 2. CLIで設定/即時適用
 ```bash
 # 現在の設定を確認
-./micgain-manager config get
+./dist/micgain-manager config get
 
 # 音量80%、インターバル45秒に変更し即時適用
-./micgain-manager config set --volume 80 --interval 45s --apply-now
+./dist/micgain-manager config set --volume 80 --interval 45s --apply-now
 
 # 一時的に50%へ即時適用 (設定値は書き換えない)
-./micgain-manager apply --volume 50
+./dist/micgain-manager apply --volume 50
 ```
 
-### 3. バイナリのビルド方法
+### 3. Taskfile経由でビルド/実行
+`go-task` をまだ導入していない場合は `brew install go-task/tap/go-task` 等でセットアップしてください。
 ```bash
-# dist/micgain-manager に出力
-make build
+# dist/micgain-manager にビルド
+task build
 
-# 生成物を使ってサーバー起動
-./dist/micgain-manager serve
+# (ADDRを環境変数で上書きしつつ) ビルド→サーバー起動
+ADDR=0.0.0.0:8080 task serve
+
+# 生成物の掃除
+task clean
 ```
 
 ## Web API

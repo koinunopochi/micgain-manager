@@ -1,0 +1,25 @@
+version: '3'
+
+vars:
+  DIST_DIR: dist
+  BINARY: micgain-manager
+
+silent: true
+
+tasks:
+  build:
+    desc: Build macOS arm64 binary into dist/
+    cmds:
+      - mkdir -p {{.DIST_DIR}}
+      - GOOS=darwin GOARCH=arm64 go build -o {{.DIST_DIR}}/{{.BINARY}} ./cmd/micgain-manager
+
+  serve:
+    desc: Build then launch the web/CLI server (override ADDR env if needed)
+    deps: [build]
+    cmds:
+      - {{.DIST_DIR}}/{{.BINARY}} serve --addr {{default "127.0.0.1:7070" .ADDR}}
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf {{.DIST_DIR}}
