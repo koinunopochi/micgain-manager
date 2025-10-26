@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8" />
+<title>Mic Gain Manager</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; margin: 2rem; background: #f7f7f9; }
+section { background: #fff; border-radius: 12px; padding: 1.5rem; box-shadow: 0 10px 30px rgba(0,0,0,0.08); max-width: 640px; }
+h1 { margin-top: 0; }
+label { display: block; margin-top: 1rem; font-weight: 600; }
+input[type=number], input[type=text] { width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid #ccc; }
+button { margin-top: 1rem; padding: 0.6rem 1.2rem; border: none; border-radius: 999px; font-weight: 600; cursor: pointer; }
+button.primary { background: #0057ff; color: #fff; }
+button.secondary { background: #e5e7eb; }
+.badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.8rem; margin-left: 0.5rem; }
+.badge.ok { background: #d1fae5; color: #047857; }
+.badge.error { background: #fee2e2; color: #b91c1c; }
+small { color: #6b7280; }
+</style>
+<section>
+  <h1>Mic Gain Manager</h1>
+  <p>CLIと同じ設定をここで編集できます。保存時に即時適用するか、次回スケジュールまで待つかを選べます。</p>
+  <form id="cfg">
+    <label>入力音量 (0-100)
+      <input type="number" id="targetVolume" min="0" max="100" required />
+    </label>
+    <label>再適用インターバル (秒)
+      <input type="number" id="interval" min="10" step="5" required />
+    </label>
+    <label>
+      <input type="checkbox" id="enabled" /> スケジューラを有効化
+    </label>
+    <div>
+      <button class="primary" data-mode="apply-now" type="submit">保存して今すぐ適用</button>
+      <button class="secondary" data-mode="later" type="button" id="saveLater">保存のみ</button>
+      <button class="secondary" type="button" id="applyNow">即時適用だけ行う</button>
+    </div>
+  </form>
+  <div id="status" style="margin-top:1rem;">
+    <strong>ステータス:</strong>
+    <span id="statusText"></span>
+  </div>
+</section>
+<script>
+async function refresh() {
+  const res = await fetch('/api/config');
+  const data = await res.json();
+  document.getElementById('targetVolume').value = data.config.targetVolume;
+  document.getElementById('interval').value = Math.round(data.config.intervalSeconds);
+  document.getElementById('enabled').checked = data.config.enabled;
+  renderStatus(data);
+}
+
+function renderStatus(data) {
+  const status = document.getElementById('statusText');
+  const badge = document.createElement('span');
+  badge.className = 'badge ' + (data.config.lastApplyStatus === 'ok' ? 'ok' : 'error');
+  badge.textContent = data.config.lastApplyStatus;
+  status.innerHTML = '';
+  const last = data.config.lastApplied ? new Date(data.config.lastApplied).toLocaleString() : '未適用';
+  status.append('最後の適用: ' + last + ' / 次回: ' + (data.nextRun ? new Date(data.nextRun).toLocaleString() : '未スケジュール'));
+  if (data.config.lastApplyStatus) {
+    status.append(' ');
+    status.appendChild(badge);
+  }
+  if (data.config.lastError) {
+    const err = document.createElement('div');
+    err.style.color = '#b91c1c';
+    err.textContent = 'エラー: ' + data.config.lastError;
+    status.appendChild(err);
+  }
+}
+
+document.getElementById('cfg').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = {
+    targetVolume: Number(document.getElementById('targetVolume').value),
+    intervalSeconds: Number(document.getElementById('interval').value),
+    enabled: document.getElementById('enabled').checked,
+    applyNow: true,
+  };
+  await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  await refresh();
+});
+
+document.getElementById('saveLater').addEventListener('click', async () => {
+  const body = {
+    targetVolume: Number(document.getElementById('targetVolume').value),
+    intervalSeconds: Number(document.getElementById('interval').value),
+    enabled: document.getElementById('enabled').checked,
+    applyNow: false,
+  };
+  await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  await refresh();
+});
+
+document.getElementById('applyNow').addEventListener('click', async () => {
+  await fetch('/api/apply', { method: 'POST' });
+  await refresh();
+});
+
+refresh();
+</script>
