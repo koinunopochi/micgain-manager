@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mic Gain Manager</title>
+    <title>マイクゲイン管理</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -176,20 +176,20 @@
 
             return (
                 <div className="container">
-                    <h1>Mic Gain Manager</h1>
+                    <h1>マイクゲイン管理</h1>
 
                     <div className={config.lastError ? 'status error' : 'status'}>
-                        <div>Status: {config.lastApplyStatus}</div>
+                        <div>状態: {config.lastApplyStatus === 'ok' ? '正常' : config.lastApplyStatus === 'error' ? 'エラー' : '未適用'}</div>
                         {config.lastApplied && (
-                            <div>Last applied: {formatDate(config.lastApplied)}</div>
+                            <div>最終適用: {formatDate(config.lastApplied)}</div>
                         )}
                         {config.lastError && (
-                            <div>Error: {config.lastError}</div>
+                            <div>エラー: {config.lastError}</div>
                         )}
                     </div>
 
                     <div className="form-group">
-                        <label>Volume (0-100)</label>
+                        <label>音量 (0-100)</label>
                         <input
                             type="number"
                             min="0"
@@ -200,7 +200,7 @@
                     </div>
 
                     <div className="form-group">
-                        <label>Interval (seconds)</label>
+                        <label>適用間隔 (秒)</label>
                         <input
                             type="number"
                             min="1"
@@ -217,7 +217,7 @@
                                 checked={config.enabled}
                                 onChange={(e) => setConfig({...config, enabled: e.target.checked})}
                             />
-                            <label htmlFor="enabled">Enabled</label>
+                            <label htmlFor="enabled">スケジューラを有効化</label>
                         </div>
                     </div>
 
@@ -227,21 +227,21 @@
                             onClick={() => handleSave(false)}
                             disabled={loading}
                         >
-                            Save
+                            保存
                         </button>
                         <button
                             className="btn-primary"
                             onClick={() => handleSave(true)}
                             disabled={loading}
                         >
-                            Save & Apply
+                            保存して即適用
                         </button>
                         <button
                             className="btn-secondary"
                             onClick={handleApply}
                             disabled={loading}
                         >
-                            Apply Now
+                            今すぐ適用
                         </button>
                     </div>
                 </div>
