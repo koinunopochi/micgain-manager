@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mic Gain Manager</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 24px;
+            color: #333;
+        }
+        .status {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            color: #666;
+        }
+        .status.error {
+            background: #fee;
+            color: #c33;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #333;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+        .button-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 24px;
+        }
+        button {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: #0066cc;
+            color: white;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function App() {
+            const [config, setConfig] = useState({
+                targetVolume: 50,
+                intervalSeconds: 90,
+                enabled: true,
+                lastApplyStatus: 'never',
+                lastApplied: null,
+                lastError: null
+            });
+            const [localVolume, setLocalVolume] = useState(50);
+            const [localInterval, setLocalInterval] = useState(90);
+            const [loading, setLoading] = useState(false);
+
+            const fetchConfig = async () => {
+                try {
+                    const res = await fetch('/api/config');
+                    const data = await res.json();
+                    setConfig(data.config);
+                    setLocalVolume(data.config.targetVolume);
+                    setLocalInterval(data.config.intervalSeconds);
+                } catch (err) {
+                    console.error('Failed to fetch config:', err);
+                }
+            };
+
+            // 初回読み込みのみ
+            useEffect(() => {
+                fetchConfig();
+            }, []);
+
+            const handleSave = async (applyNow) => {
+                setLoading(true);
+                try {
+                    await fetch('/api/config', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            targetVolume: parseInt(localVolume),
+                            intervalSeconds: parseInt(localInterval),
+                            enabled: config.enabled,
+                            applyNow
+                        })
+                    });
+                    await fetchConfig();
+                } catch (err) {
+                    console.error('Failed to update config:', err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleApply = async () => {
+                setLoading(true);
+                try {
+                    await fetch('/api/apply', { method: 'POST' });
+                    await fetchConfig();
+                } catch (err) {
+                    console.error('Failed to apply:', err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const formatDate = (dateStr) => {
+                if (!dateStr) return 'N/A';
+                return new Date(dateStr).toLocaleString();
+            };
+
+            return (
+                <div className="container">
+                    <h1>Mic Gain Manager</h1>
+
+                    <div className={config.lastError ? 'status error' : 'status'}>
+                        <div>Status: {config.lastApplyStatus}</div>
+                        {config.lastApplied && (
+                            <div>Last applied: {formatDate(config.lastApplied)}</div>
+                        )}
+                        {config.lastError && (
+                            <div>Error: {config.lastError}</div>
+                        )}
+                    </div>
+
+                    <div className="form-group">
+                        <label>Volume (0-100)</label>
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={localVolume}
+                            onChange={(e) => setLocalVolume(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Interval (seconds)</label>
+                        <input
+                            type="number"
+                            min="1"
+                            value={localInterval}
+                            onChange={(e) => setLocalInterval(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <div className="checkbox-group">
+                            <input
+                                type="checkbox"
+                                id="enabled"
+                                checked={config.enabled}
+                                onChange={(e) => setConfig({...config, enabled: e.target.checked})}
+                            />
+                            <label htmlFor="enabled">Enabled</label>
+                        </div>
+                    </div>
+
+                    <div className="button-group">
+                        <button
+                            className="btn-secondary"
+                            onClick={() => handleSave(false)}
+                            disabled={loading}
+                        >
+                            Save
+                        </button>
+                        <button
+                            className="btn-primary"
+                            onClick={() => handleSave(true)}
+                            disabled={loading}
+                        >
+                            Save & Apply
+                        </button>
+                        <button
+                            className="btn-secondary"
+                            onClick={handleApply}
+                            disabled={loading}
+                        >
+                            Apply Now
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
