@@ -99,6 +99,15 @@
             background: #6c757d;
             color: white;
         }
+        .note {
+            margin-top: 12px;
+            padding: 10px;
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #856404;
+        }
     </style>
 </head>
 <body>
@@ -243,6 +252,10 @@
                         >
                             適用のみ
                         </button>
+                    </div>
+
+                    <div className="note">
+                        <strong>注意:</strong> 「適用のみ」は一時的な変更です。スケジューラが有効な場合、次の適用タイミング（インターバル経過時）で設定値に戻ります。永続的に変更したい場合は「保存＋適用」を使用してください。
                     </div>
                 </div>
             );
