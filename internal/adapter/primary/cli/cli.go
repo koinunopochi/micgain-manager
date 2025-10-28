@@ -5,11 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/chzyer/readline"
+	"github.com/google/shlex"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"micgain-manager/internal/adapter/primary/web"
 	"micgain-manager/internal/adapter/secondary/repository"
@@ -45,6 +51,7 @@ func NewRootCmd() *cobra.Command {
 		newServeCmd(),
 		newConfigCmd(),
 		newApplyCmd(),
+		newShellCmd(),
 	)
 
 	return cmd
@@ -291,4 +298,140 @@ func newApplyCmd() *cobra.Command {
 	}
 	cmd.Flags().IntVar(&volumeFlag, "volume", 0, "0-100を指定。未指定なら設定値を利用")
 	return cmd
+}
+
+func newShellCmd() *cobra.Command {
+	var prompt string
+	cmd := &cobra.Command{
+		Use:   "shell",
+		Short: "Cobraサブコマンドを対話的に叩けるシェルを起動",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runInteractiveShell(prompt)
+		},
+	}
+	cmd.Flags().StringVar(&prompt, "prompt", "micgain> ", "シェルのプロンプト文字列")
+	return cmd
+}
+
+func runInteractiveShell(prompt string) error {
+	historyFile := filepath.Join(os.TempDir(), "micgain-manager-shell.history")
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:          prompt,
+		HistoryFile:     historyFile,
+		InterruptPrompt: "^C",
+		EOFPrompt:       "exit",
+	})
+	if err != nil {
+		return err
+	}
+	defer rl.Close()
+
+	sessionVerbosity := verbosity
+	fmt.Println("対話型シェルを開始します。'help' で使い方、'exit' で終了。")
+
+	for {
+		line, err := rl.Readline()
+		if err == readline.ErrInterrupt {
+			fmt.Println()
+			continue
+		}
+		if err == io.EOF {
+			fmt.Println()
+			return nil
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		switch line {
+		case "exit", "quit":
+			fmt.Println("Bye!")
+			return nil
+		case "help":
+			printShellHelp()
+			continue
+		}
+		tokens, err := shlex.Split(line)
+		if err != nil {
+			fmt.Printf("Parse error: %v\n", err)
+			continue
+		}
+		if len(tokens) == 0 {
+			continue
+		}
+		if tokens[0] == "log" {
+			if err := handleShellLog(tokens[1:], &sessionVerbosity); err != nil {
+				fmt.Printf("log: %v\n", err)
+			}
+			continue
+		}
+		if tokens[0] == "shell" {
+			fmt.Println("すでにシェル内です。他のコマンドを入力するか 'exit' で終了してください。")
+			continue
+		}
+
+		verbosity = sessionVerbosity
+		if err := executeArgs(tokens); err != nil {
+			fmt.Printf("command error: %v\n", err)
+		}
+		sessionVerbosity = verbosity
+	}
+}
+
+func executeArgs(args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+	root := NewRootCmd()
+	root.SetArgs(args)
+	return root.Execute()
+}
+
+func handleShellLog(args []string, sessionVerbosity *int) error {
+	fs := pflag.NewFlagSet("log", pflag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	var vcount int
+	var level string
+	var show bool
+	fs.CountVarP(&vcount, "verbose", "v", "Increase verbosity (-v... up to 4)")
+	fs.StringVar(&level, "level", "", "指定レベル(error|warn|info|debug|trace)")
+	fs.BoolVarP(&show, "show", "s", false, "現在のレベルを表示")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	switch {
+	case show && vcount == 0 && level == "":
+		fmt.Printf("log level: %s (-v x%d)\n", logging.LevelName(), logging.Verbosity())
+		return nil
+	case level != "":
+		_, count, err := logging.ParseLevel(level)
+		if err != nil {
+			return err
+		}
+		*sessionVerbosity = count
+	case vcount > 0:
+		*sessionVerbosity = vcount
+	default:
+		fmt.Printf("log level: %s (-v x%d)\n", logging.LevelName(), logging.Verbosity())
+		return nil
+	}
+
+	verbosity = *sessionVerbosity
+	logging.SetVerbosity(*sessionVerbosity)
+	fmt.Printf("log level set to %s (-v x%d)\n", logging.LevelName(), logging.Verbosity())
+	return nil
+}
+
+func printShellHelp() {
+	fmt.Println(`利用可能な入力例:
+  daemon                      # スケジューラを起動
+  web --addr 0.0.0.0:7070     # Web UIを起動
+  serve --addr 0.0.0.0:8080   # Web UI + スケジューラを起動
+  config get                  # 設定を確認
+  config set --volume 70      # 設定を更新
+  apply --volume 45           # 即時適用のみ実施
+  log -vv                     # ログ出力を詳細化
+  log --show                  # 現在のログレベルを確認
+  exit / quit                 # シェル終了`)
 }
