@@ -52,7 +52,70 @@ func newRootCmd() *cobra.Command {
 	cmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		logging.SetVerbosity(verbosity)
 	}
-	cmd.AddCommand(newServeCmd(), newConfigCmd(), newApplyCmd(), newShellCmd())
+	cmd.AddCommand(newDaemonCmd(), newWebCmd(), newServeCmd(), newConfigCmd(), newApplyCmd(), newShellCmd())
+	return cmd
+}
+
+func newDaemonCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "daemon",
+		Short: "スケジューラのみを起動（Webサーバーなし）",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := config.NewFileStore(cfgPath)
+			if err != nil {
+				return err
+			}
+			mgr, err := core.NewManager(store, volume.AppleScriptApplier{})
+			if err != nil {
+				return err
+			}
+
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+			defer stop()
+
+			fmt.Println("Mic Gain Manager daemon started")
+			logging.Infof("Scheduler daemon started")
+			mgr.Start(ctx)
+
+			<-ctx.Done()
+			fmt.Println("Daemon shutting down...")
+			return nil
+		},
+	}
+	return cmd
+}
+
+func newWebCmd() *cobra.Command {
+	var addr string
+	cmd := &cobra.Command{
+		Use:   "web",
+		Short: "Web UIとREST APIのみを起動（スケジューラなし）",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := config.NewFileStore(cfgPath)
+			if err != nil {
+				return err
+			}
+			mgr, err := core.NewManager(store, volume.AppleScriptApplier{})
+			if err != nil {
+				return err
+			}
+
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+			defer stop()
+
+			srv := web.New(mgr, addr)
+			fmt.Printf("Mic Gain Manager Web UI running at http://%s\n", addr)
+			logging.Infof("Web UI: http://%s (scheduler disabled)", addr)
+			go func() {
+				<-ctx.Done()
+				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_ = srv.Shutdown(shutdownCtx)
+			}()
+			return srv.Start()
+		},
+	}
+	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:7070", "HTTPサーバーのアドレス:ポート")
 	return cmd
 }
 
@@ -60,7 +123,7 @@ func newServeCmd() *cobra.Command {
 	var addr string
 	cmd := &cobra.Command{
 		Use:   "serve",
-		Short: "Web UIとREST APIを含む永続サーバーを起動",
+		Short: "Web UIとスケジューラを両方起動",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			store, err := config.NewFileStore(cfgPath)
 			if err != nil {
